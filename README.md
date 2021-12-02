@@ -1,241 +1,195 @@
-# EmpatheticDialogues
+We forked the original codebase from [here](https://github.com/facebookresearch/EmpatheticDialogues). The
+original [readme](./README_OLD.md) has been moved.
 
-PyTorch original implementation of Towards Empathetic Open-domain Conversation Models: a New Benchmark and Dataset (https://arxiv.org/abs/1811.00207).
+# Table of contents
 
-We provide a novel dataset of 25k conversations grounded in emotional situations. The code in this repo demonstrates that automated metrics (P@1,100 and BLEU) are improved both when using candidates from our dataset and when fine-tuning on it.
+1. [Setup steps](#setup-steps)
 
-This repo contains code for:
-- Transformer-based retrieval (pretraining, fine-tuning)
-- BERT-based retrieval (pretraining, fine-tuning)
-- Prepending classifier labels (e.g. EmoPrepend-1)
+   1.1 [Environment](#environment)
 
-## Dataset
+   1.2 [Data & Models](#data--models)
 
-To download the EmpatheticDialogues dataset:
+2. [Code Structure](#code-structure)
+3. [Running code](#running-code)
 
-```
-wget https://dl.fbaipublicfiles.com/parlai/empatheticdialogues/empatheticdialogues.tar.gz
-```
+   3.1 [Training Emotion Classifiers](#training-emotion-classifiers)
 
-## Models
+   3.2 [Training Retrieval w/ BERT](#training-retrieval-w-bert)
 
-To reproduce paper numbers, see the evaluation commands in the Commands section, and use the following trained models:
+4. [Technical Difficulties](#technical-difficulties)
 
-```
-wget https://dl.fbaipublicfiles.com/parlai/empatheticdialogues/models/normal_transformer_pretrained.mdl  # Normal Transformer, pretrained
-wget https://dl.fbaipublicfiles.com/parlai/empatheticdialogues/models/normal_transformer_finetuned.mdl  # Normal Transformer, fine-tuned
-wget https://dl.fbaipublicfiles.com/parlai/empatheticdialogues/models/bert_pretrained.mdl  # BERT, pretrained
-wget https://dl.fbaipublicfiles.com/parlai/empatheticdialogues/models/bert_finetuned.mdl  # BERT, fine-tuned
-wget https://dl.fbaipublicfiles.com/parlai/empatheticdialogues/models/bert_finetuned_emoprepend1.mdl  # BERT, fine-tuned (EmoPrepend-1)
-wget https://dl.fbaipublicfiles.com/parlai/empatheticdialogues/models/fasttext_empathetic_dialogues.mdl  # fastText classifier used for EmoPrepend-1
-```
+<hr/>
 
-## Dependencies
+## Setup steps
 
-Versions given are what the code has been tested on.
+### Environment
 
-### Required
-- [numpy](https://www.numpy.org/) (1.14.3)
-- [PyTorch](https://pytorch.org/) (1.0.1.post2)
-- [tqdm](https://tqdm.github.io/) (4.19.7)
+We will setup two conda environments, one for running the code in the original paper and the other for running the code
+in the new environment.
 
-### Optional
-- [fairseq](https://fairseq.readthedocs.io/en/latest/) (0.6.2; for BLEU calculation in `retrieval_eval_bleu.py`)
-- [fastText](https://fasttext.cc/) (0.9.1; for Prepend models)
-- [pandas](https://pandas.pydata.org/) (0.22.0; for DailyDialog dataset)
-- [ParlAI](https://parl.ai/) ([commit used](https://github.com/facebookresearch/ParlAI/commit/471db18c47d322d814f4e1bba6e35d9da6ac31ff); for BERT model)
-- [pytorch-pretrained-BERT](https://github.com/huggingface/pytorch-pretrained-BERT) (0.5.1; for BERT model)
+> Environment 1 : empathy01
 
-## Commands
+```bash
+conda create -n empathy01 python=3.6
 
-### Transformer-based retrieval
+conda activate empathy01
 
-#### Pretraining
-```
-python retrieval_train.py \
---batch-size 512 \
---cuda \
---dataset-name reddit \
---dict-max-words 250000 \
---display-iter 250 \
---embeddings ${REDDIT_EMBEDDINGS_PATH} \
---empchat-folder ${EMPATHETIC_DIALOGUES_DATA_FOLDER} \
---learn-embeddings \
---learning-rate 8e-4 \
---model transformer \
---model-dir ${TRAIN_SAVE_FOLDER} \
---model-name model \
---n-layers 4 \
---num-epochs 10000 \
---optimizer adamax \
---reddit-folder ${REDDIT_DATA_FOLDER} \
---transformer-dim 300 \
---transformer-n-heads 6
+conda install numpy=1.14.3
+
+conda install pytorch-cpu==1.0.1 torchvision-cpu==0.2.2 cpuonly -c pytorch
+
+pip install tqdm==4.19.7
+
+conda install pandas=0.22.0
+
+pip install fairseq==0.6.2
+
+pip install git+git://github.com/facebookresearch/ParlAI.git@471db18c47d322d814f4e1bba6e35d9da6ac31ff
+
+pip install pytorch-pretrained-bert==0.5.1
+
+pip install fasttext==0.9.1
 ```
 
-#### Fine-tuning
-```
-python retrieval_train.py \
---batch-size 512 \
---cuda \
---dataset-name empchat \
---dict-max-words 250000 \
---display-iter 250 \
---empchat-folder ${EMPATHETIC_DIALOGUES_DATA_FOLDER} \
---learn-embeddings \
---learning-rate 8e-4 \
---load-checkpoint ${PRETRAINED_MODEL_PATH} \
---max-hist-len 4 \
---model transformer \
---model-dir ${TRAIN_SAVE_FOLDER} \
---model-name model \
---n-layers 4 \
---num-epochs 10 \
---optimizer adamax \
---reddit-folder ${REDDIT_DATA_FOLDER} \
---transformer-dim 300 \
---transformer-n-heads 6
+> Environment 2 : empathy02
+
+```bash
+pip install tqdm==4.19.7
+
+pip install tensorflow==2.4.1
+
+pip install keras==2.4.3
+
+pip install pytorch-pretrained-bert==0.5.1
+
+pip install transformers==4.12.5
 ```
 
-#### Evaluation
-```
-# P@1,100
-python retrieval_train.py \
---batch-size 512 \
---cuda \
---dataset-name empchat \
---dict-max-words 250000 \
---display-iter 250 \
---empchat-folder ${EMPATHETIC_DIALOGUES_DATA_FOLDER} \
---max-hist-len 4 \
---model transformer \
---model-dir ${EVAL_SAVE_FOLDER} \
---model-name model \
---n-layers 4 \
---optimizer adamax \
---pretrained ${TRAIN_SAVE_FOLDER}/model.mdl \
---reactonly \
---transformer-dim 300 \
---transformer-n-heads 6
+<hr/>
 
-# BLEU (EmpatheticDialogues context/candidates)
-python retrieval_eval_bleu.py \
---empchat-cands \
---empchat-folder ${EMPATHETIC_DIALOGUES_DATA_FOLDER} \
---max-hist-len 4 \
---model ${TRAIN_SAVE_FOLDER}/model.mdl \
---name model \
---output-folder ${EVAL_SAVE_FOLDER} \
---reactonly \
---task empchat
-```
+### Data & Models
 
-### BERT-based retrieval
+- Download the dataset as mentioned in the [original codebase](./README_OLD.md#dataset) and extract under `data/`
+  directory.
+- Run [data/transform_labels.py](./data/transform_labels.py) to generate the 8 label variant of dataset from the 32
+  label dataset.
+- Download the pre-trained models as provided in the [original codebase](./README_OLD.md#models) and extract
+  under `models/`
+  directory.
 
-#### Pretraining
-```
-python retrieval_train.py \
---batch-size 256 \
---bert-dim 300 \
---cuda \
---dataset-name reddit \
---dict-max-words 250000 \
---display-iter 100 \
---embeddings None \
---empchat-folder ${EMPATHETIC_DIALOGUES_DATA_FOLDER} \
---learning-rate 6e-5 \
---model bert \
---model-dir ${TRAIN_SAVE_FOLDER} \
---model-name model \
---num-epochs 10000 \
---optimizer adamax \
---reddit-folder ${BERT_TOKENIZED_REDDIT_DATA_FOLDER}
-```
+<hr/>
 
-#### Fine-tuning
-```
-python retrieval_train.py \
---batch-size 256 \
---bert-dim 300 \
---cuda \
---dataset-name empchat \
---dict-max-words 250000 \
---display-iter 100 \
---embeddings None \
---empchat-folder ${EMPATHETIC_DIALOGUES_DATA_FOLDER} \
---learning-rate 1e-5 \
---load-checkpoint ${PRETRAINED_MODEL_PATH} \
---max-hist-len 4 \
---model bert \
---model-dir ${TRAIN_SAVE_FOLDER} \
---model-name model \
---num-epochs 100 \
---optimizer adamax \
---stop-crit-num-epochs 10
-```
+## Code Structure
 
-#### Evaluation
-```
-# P@1,100
-python retrieval_train.py \
---batch-size 256 \
---bert-dim 300 \
---cuda \
---dataset-name empchat \
---dict-max-words 250000 \
---display-iter 100 \
---embeddings None \
---empchat-folder ${EMPATHETIC_DIALOGUES_DATA_FOLDER} \
---max-hist-len 4 \
---model bert \
---model-dir ${EVAL_SAVE_FOLDER} \
---model-name model \
---optimizer adamax \
---pretrained ${TRAIN_SAVE_FOLDER}/model.mdl \
---reactonly
+Apart from the original code, the files that we introduced reside in [empchat/classifiers](./empchat/classifiers) folder
+and [data](./data) folder.
 
-# BLEU (EmpatheticDialogues context/candidates)
-python retrieval_eval_bleu.py \
---bleu-dict ${PATH_TO_MODEL_WITH_TRANSFORMER_DICT} \
---empchat-cands \
---empchat-folder ${EMPATHETIC_DIALOGUES_DATA_FOLDER} \
---max-hist-len 4 \
---model ${TRAIN_SAVE_FOLDER}/model.mdl \
---name model \
---output-folder ${EVAL_SAVE_FOLDER} \
---reactonly \
---task empchat
-```
+[empchat/classifiers](./empchat/classifiers) folder contains the model training and evaluation files for the Emotion
+classifiers.
 
-Note: we pass in a separate dictionary (`--bleu-dict`) in order to use the same tokenization when calculating the BLEU of both Transformer and BERT models. For this, you can use the pretrained normal Transformer model listed in the Models section above.
+<hr/>
 
-#### EmoPrepend-1
+## Running code
 
-Add the following flags when calling `retrieval_train.py` or `retrieval_eval_bleu.py`:
-```
---fasttext 1 \
---fasttext-path ${PATH_TO_TRAINED_FASTTEXT_MODEL} \
---fasttext-type emo
-```
-For `${PATH_TO_TRAINED_FASTTEXT_MODEL}`, you can pass in the fastText classifier in the Models section above.
+### Training Emotion Classifiers
 
-## References
+Activate the `empathy02` environment, and then you can train these models.
 
-Please cite [[1]](https://arxiv.org/abs/1811.00207) if you found the resources in this repository useful.
+1. BiLSTM model - [model file](./empchat/classifiers/model_lstm.py)
 
-### Towards Empathetic Open-domain Conversation Models: a New Benchmark and Dataset
+   To train **32** labels model -
 
-[1] H. Rashkin, E. M. Smith, M. Li, Y. Boureau [*Towards Empathetic Open-domain Conversation Models: a New Benchmark and Dataset*](https://arxiv.org/abs/1811.00207)
+      ```bash
+      python -m empchat.classifiers.model_lstm
+      ```
 
-```
-@inproceedings{rashkin2019towards,
-  title = {Towards Empathetic Open-domain Conversation Models: a New Benchmark and Dataset},
-  author = {Hannah Rashkin and Eric Michael Smith and Margaret Li and Y-Lan Boureau},
-  booktitle = {ACL},
-  year = {2019},
-}
-```
+   To train **8** labels model -
 
-## License
+      ```bash
+      LABEL_SUFFIX=_8 python -m empchat.classifiers.model_lstm
+      ```
 
-See the LICENSE file in the root repo folder for more details.
+2. BiLSTM w/ Attention model - [model file](./empchat/classifiers/model_lstm_attention.py)
+
+   To train **32** labels model -
+
+      ```bash
+      python -m empchat.classifiers.model_lstm_attention
+      ```
+
+   To train **8** labels model -
+
+      ```bash
+      LABEL_SUFFIX=_8 python -m empchat.classifiers.model_lstm_attention
+      ```
+
+2. BERT model - [model file](./empchat/classifiers/model_transformer.py)
+
+   To train **32** labels model -
+
+      ```bash
+      python -m empchat.classifiers.model_transformer
+      ```
+
+   To train **8** labels model -
+
+      ```bash
+      LABEL_SUFFIX=_8 python -m empchat.classifiers.model_transformer
+      ```
+
+### Training Retrieval w/ BERT
+
+Activate the `empathy01` environment, and then you can train these models.
+The training and evaluation scripts reside in `cmd/` directory.
+
+1. BiLSTM model -
+   ```bash
+   # train 32 labels
+   bash cmd/lstm.sh
+   # evaluate 32 labels
+   bash cmd/eval_lstm.sh
+   
+   # train 8 labels
+   bash cmd/lstm_8.sh
+   # evaluate 8 labels
+   bash cmd/eval_lstm_8.sh
+   ```
+
+2. BiLSTM w/ Attention model -
+   ```bash
+   # train 32 labels
+   bash cmd/lstm_attn.sh
+   # evaluate 32 labels
+   bash cmd/eval_lstm_attn.sh
+   
+   # train 8 labels
+   bash cmd/lstm_attn_8.sh
+   # evaluate 8 labels
+   bash cmd/eval_lstm_attn_8.sh
+   ```
+
+3. Replicating fasttext model -
+    ```bash
+   # train 32 labels
+   bash cmd/fast.sh
+   # evaluate 32 labels
+   bash cmd/eval_fast.sh
+   ```
+
+**Notes -**
+
+- EMO classifier model is selected by specifiying ENV variable `EMO_MODEL=fast(default)|lstm|attn|trans`
+
+<hr/>
+
+## Technical Difficulties
+
+- Replicating the original environment was cumbersome. Since, the libraries used are a bit outdated it took some time to
+  make it work with GPUs and resolving conflicts.
+- Adding `Attention` and `BERT` to the older libraries without updating the versions seemed impossible. Hence, we
+  created 2 separate environments to make things work without conflicts.
+- We couldn't replicate/train the custom transformer based retrieval proposed in the original code as a
+  crucial [word dictionary](./empchat/datasets/loader.py#L35) is missing. Hence, we only replicate/train retrieval w/
+  BERT models.
+- Training the retrieval with BERT models required huge ~90GB of GPU memory! We consumed all the credits in setup and
+  training BiLSTM models. So, we have just added the model code.
