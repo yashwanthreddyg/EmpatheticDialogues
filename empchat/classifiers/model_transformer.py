@@ -25,6 +25,8 @@ def EmotionClassifierModel(label2idx, filepath):
         metrics=["accuracy"],
         optimizer='adam'
     )
+    # TODO: train and check if a linear classifier layer is needed at the end
+    #  if so compile the model again
     # model.compile(loss=model.compute_loss, metrics=["accuracy"], optimizer='adam')
 
     # define the checkpoint
